@@ -1,0 +1,75 @@
+---
+- name: Update and upgrade system
+  apt:
+    update_cache: yes
+    upgrade: yes
+    cache_valid_time: 3600
+
+- name: Install essential packages
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - vim
+      - htop
+      - net-tools
+      - jq
+      - unzip
+      - ufw
+    state: present
+
+- name: Create deployment user
+  user:
+    name: "{{ deploy_user }}"
+    groups: sudo
+    shell: /bin/bash
+    create_home: yes
+
+- name: Add SSH key for deployment user
+  authorized_key:
+    user: "{{ deploy_user }}"
+    state: present
+    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+  when: not ansible_check_mode
+
+- name: Configure SSH hardening
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+  notify: restart ssh
+
+- name: Configure firewall
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - 22
+    - 80
+    - 443
+
+- name: Enable firewall
+  ufw:
+    state: enabled
+    policy: deny
+
+- name: Check if SSH server is installed
+  stat:
+    path: /etc/ssh/sshd_config
+  register: sshd_config_exists
+
+- name: Configure SSH hardening (only if SSH server exists)
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  loop:
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?PermitRootLogin', line: 'PermitRootLogin no' }
+  notify: restart ssh
+  when: sshd_config_exists.stat.exists

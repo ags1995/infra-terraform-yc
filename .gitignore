@@ -1,0 +1,22 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+terraform.tfvars
+
+# Ansible
+ansible/inventory.ini
+ansible/vm_ips.json
+ansible/*.retry
+
+# Credentials
+credentials/*.json
+*.pem
+*.key
+
+# Jenkins
+workspace/
+
+# System
+.DS_Store
+Thumbs.db

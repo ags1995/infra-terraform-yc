@@ -1,0 +1,24 @@
+---
+- name: Configure Yandex Cloud application servers
+  hosts: all
+  become: yes
+  
+  vars:
+    deploy_user: deploy
+    python_version: "3.10"
+    
+  pre_tasks:
+    - name: Wait for SSH to be ready
+      wait_for_connection:
+        timeout: 300
+  
+  roles:
+    - common
+    - python
+    - nginx
+    - database
+  
+  tasks:
+    - name: Display deployment summary
+      debug:
+        msg: "Server {{ inventory_hostname }} configured successfully!"
