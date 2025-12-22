@@ -51,7 +51,7 @@ resource "yandex_compute_instance" "vm" {
   }
 
   metadata = {
-    ssh-keys = "ubuntu:${file(var.ssh_public_key_path)}"
+    ssh-keys = "ubuntu:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDaVz+ICcF2iebf6vX1ndzJK8TF5lU0HYiuxPcMVc2qE25/Ggo+PcDPx9vjkPiv/CCtQDcbFWL6hFA0FabplfClfM8aV7JayEo0Qe+ziQkiPcSJShpv6oKgA6W1mWHni6RR/ACQWSKYnPGtoDgPrY29DN23FSjuTSvgdj7WsBvV2I7Q4mdkL5010HJUS6OAA4CEpAxVzORs7fKTou3th9WtFNaGf4vWZ/ycDS//fa2eLlIzTbV5NO4oJdLbxoU3vnhKolWfzfFjeAkDn55JqH4d6EHCI0kGOUV6h22pjoy1wUe5syiGeBMthm3N/ApiUHRD4q6B3WOHtwGk3bn2Q4oKe+hNa4ujvktDu17w0K3H/WKBNFQscfVgsnksAN6LmoWstfgEL8+09vsgyGfYctwEj4UXABxOwzpt3LEOzCZXrAdHWvQJ0HjMHmxz8/UAKV5bkcjTImfmonsAWa245lRzFRMEXJl20EP8VuZ8g+3NIcSQ0pHqPJ1TI2hzNpNxnXc= ghazi@ghazi-VirtualBox"
   }
   
   scheduling_policy {
