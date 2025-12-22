@@ -94,41 +94,25 @@ pipeline {
             }
         }
         
-        stage('Terraform Apply') {
-            steps {
-                dir('terraform') {
-                    sh '''
-                        # Export credentials
-                        export YC_TOKEN="${YC_TOKEN}"
-                        export YC_CLOUD_ID="${YC_CLOUD_ID}"
-                        export YC_FOLDER_ID="${YC_FOLDER_ID}"
-                        export YC_ZONE="${YC_ZONE}"
+      stage('Terraform Apply') {
+          when {
+              expression { env.SKIP_APPLY != 'true' }  // Skip if SKIP_APPLY is set
+          }
+          steps {
+              dir('terraform') {
+                  sh '''
+                      export YC_TOKEN="${YC_TOKEN}"
+                      export YC_CLOUD_ID="${YC_CLOUD_ID}"
+                      export YC_FOLDER_ID="${YC_FOLDER_ID}"
+                      export YC_ZONE="${YC_ZONE}"
+                 
+                      echo "Applying Terraform configuration..."
+                      terraform apply -auto-approve tfplan
+                  '''
+              }
+          }
+      }
                         
-                        echo "Applying Terraform configuration..."
-                        terraform apply -auto-approve tfplan
-                        
-                        # Export IPs for Ansible
-                        echo "Extracting VM IP addresses..."
-                        terraform output -json vm_public_ips > ../ansible/inventory.json
-                        
-                        # Create dynamic Ansible inventory
-                        echo "[all]" > ../ansible/inventory.ini
-                        terraform output -json vm_public_ips | jq -r '.[]' | \
-                        while read ip; do
-                            echo "server-$RANDOM ansible_host=$ip ansible_user=ubuntu" >> ../ansible/inventory.ini
-                        done
-                        
-                        echo "" >> ../ansible/inventory.ini
-                        echo "[all:vars]" >> ../ansible/inventory.ini
-                        echo "ansible_ssh_private_key_file=~/.ssh/id_rsa" >> ../ansible/inventory.ini
-                        echo "ansible_python_interpreter=/usr/bin/python3" >> ../ansible/inventory.ini
-                        
-                        # Save IPs to file for reference
-                        terraform output vm_public_ips > ../ansible/vm_ips.txt
-                    '''
-                }
-            }
-        }
         
         stage('Wait for SSH') {
             steps {
