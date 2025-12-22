@@ -14,13 +14,14 @@ provider "yandex" {
   zone      = var.zone
 }
 
-# Use existing default network and subnet
-data "yandex_vpc_network" "existing_network" {
-  name = "default"
+# Fetch the existing lab5-network you already created
+data "yandex_vpc_network" "lab5_network" {
+  name = "lab5-network"
 }
 
-data "yandex_vpc_subnet" "existing_subnet" {
-  name = "default-ru-central1-a"
+# Fetch the existing lab5-subnet within that network
+data "yandex_vpc_subnet" "lab5_subnet" {
+  name = "lab5-subnet"
 }
 
 # Create VM instances
@@ -36,13 +37,13 @@ resource "yandex_compute_instance" "vm" {
 
   boot_disk {
     initialize_params {
-      image_id = "fd87va5cc00gaq2f5qfb"  # Ubuntu 22.04
+      image_id = "ubuntu-2204-lts"
       size = 10
     }
   }
 
   network_interface {
-    subnet_id = data.yandex_vpc_subnet.existing_subnet.id  # Use existing subnet
+    subnet_id = data.yandex_vpc_subnet.lab5_subnet.id
     nat       = true
   }
 
@@ -55,14 +56,10 @@ resource "yandex_compute_instance" "vm" {
   }
 }
 
-# Output the public IP addresses
 output "vm_public_ips" {
   value = yandex_compute_instance.vm[*].network_interface[0].nat_ip_address
-  description = "Public IP addresses of created VMs"
 }
 
-# Output SSH command examples
 output "ssh_commands" {
   value = [for i, ip in yandex_compute_instance.vm[*].network_interface[0].nat_ip_address : "ssh ubuntu@${ip}"]
-  description = "SSH commands to connect to VMs"
 }
