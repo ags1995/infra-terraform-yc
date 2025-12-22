@@ -28,9 +28,3 @@ variable "vm_count" {
   type        = number
   default     = 1
 }
-
-variable "ssh_public_key_path" {
-  description = "Path to SSH public key"
-  type        = string
-  default     = "~/.ssh/id_rsa.pub"
-}
