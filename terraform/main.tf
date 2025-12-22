@@ -14,17 +14,13 @@ provider "yandex" {
   zone      = var.zone
 }
 
-# Create a VPC network
-resource "yandex_vpc_network" "network" {
-  name = "lab5-network"
+# Use existing default network and subnet
+data "yandex_vpc_network" "existing_network" {
+  name = "default"
 }
 
-# Create a subnet in the specified zone
-resource "yandex_vpc_subnet" "subnet" {
-  name           = "lab5-subnet"
-  zone           = var.zone
-  network_id     = yandex_vpc_network.network.id
-  v4_cidr_blocks = ["192.168.10.0/24"]
+data "yandex_vpc_subnet" "existing_subnet" {
+  name = "default-ru-central1-a"
 }
 
 # Create VM instances
@@ -46,7 +42,7 @@ resource "yandex_compute_instance" "vm" {
   }
 
   network_interface {
-    subnet_id = yandex_vpc_subnet.subnet.id
+    subnet_id = data.yandex_vpc_subnet.existing_subnet.id  # Use existing subnet
     nat       = true
   }
 
@@ -55,7 +51,7 @@ resource "yandex_compute_instance" "vm" {
   }
   
   scheduling_policy {
-    preemptible = true  # Cheaper, can be terminated
+    preemptible = true
   }
 }
 
