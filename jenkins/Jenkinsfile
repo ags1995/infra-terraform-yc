@@ -1,54 +1,248 @@
 pipeline {
-    agent any
+    agent {
+        label 'ahmad-node'  // SPECIFICALLY USE YOUR NODE
+    }
+    
+    environment {
+        // USE YOUR ACTUAL CREDENTIALS FROM yc config list
+        YC_TOKEN = "y0__xCT2uu1CBjB3RMg8smB4BV11AWg3gGiVQIHmh6Yp2WqyGx4RQ"
+        YC_CLOUD_ID = "b1g34ocftjh5ugcdgth0"
+        YC_FOLDER_ID = "b1g1ei0qnal703m46gb2"
+        YC_ZONE = "ru-central1-a"
+        ANSIBLE_HOST_KEY_CHECKING = 'false'
+    }
+    
+    parameters {
+        booleanParam(
+            name: 'DESTROY_AFTER_TEST',
+            defaultValue: false,
+            description: 'Destroy infrastructure after pipeline run'
+        )
+        choice(
+            name: 'VM_COUNT',
+            choices: ['1', '2', '3'],
+            description: 'Number of VMs to create'
+        )
+    }
+    
     stages {
-        stage('Checkout') {
-            steps { checkout scm }
+        stage('Check Node') {
+            steps {
+                sh '''
+                    echo "========================================"
+                    echo "Running on: $(hostname)"
+                    echo "This is AHMAD's node (ahmad-node)"
+                    echo "Using AHMAD's Yandex Cloud credentials"
+                    echo "========================================"
+                '''
+            }
         }
+        
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'echo "Repository: ${GIT_URL}"'
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                sh '''
+                    echo "Installing required tools..."
+                    sudo apt-get update || true
+                    which terraform || sudo apt-get install -y terraform
+                    which ansible || sudo apt-get install -y ansible
+                    which jq || sudo apt-get install -y jq
+                    which python3 || sudo apt-get install -y python3 python3-pip
+                '''
+            }
+        }
+        
+        stage('Terraform Init') {
+            steps {
+                dir('terraform') {
+                    sh '''
+                        # Export credentials
+                        export YC_TOKEN="${YC_TOKEN}"
+                        export YC_CLOUD_ID="${YC_CLOUD_ID}"
+                        export YC_FOLDER_ID="${YC_FOLDER_ID}"
+                        export YC_ZONE="${YC_ZONE}"
+                        
+                        echo "Initializing Terraform..."
+                        terraform init
+                    '''
+                }
+            }
+        }
+        
+        stage('Terraform Plan') {
+            steps {
+                dir('terraform') {
+                    sh '''
+                        # Export credentials
+                        export YC_TOKEN="${YC_TOKEN}"
+                        export YC_CLOUD_ID="${YC_CLOUD_ID}"
+                        export YC_FOLDER_ID="${YC_FOLDER_ID}"
+                        export YC_ZONE="${YC_ZONE}"
+                        
+                        echo "Creating Terraform plan..."
+                        terraform plan \
+                            -var="vm_count=${VM_COUNT}" \
+                            -out=tfplan
+                    '''
+                }
+            }
+        }
+        
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
                     sh '''
-                        terraform init
-                        terraform apply -auto-approve \
-                            -var="cloud_id=b1g34ocftjh5ugcdgth0" \
-                            -var="folder_id=b1g1ei0qnal703m46gb2" \
-                            -var="service_account_key_file=../credentials/sa-key.json"
-                        terraform output -json vm_public_ips > ../ansible/vm_ips.json
+                        # Export credentials
+                        export YC_TOKEN="${YC_TOKEN}"
+                        export YC_CLOUD_ID="${YC_CLOUD_ID}"
+                        export YC_FOLDER_ID="${YC_FOLDER_ID}"
+                        export YC_ZONE="${YC_ZONE}"
+                        
+                        echo "Applying Terraform configuration..."
+                        terraform apply -auto-approve tfplan
+                        
+                        # Export IPs for Ansible
+                        echo "Extracting VM IP addresses..."
+                        terraform output -json vm_public_ips > ../ansible/inventory.json
+                        
+                        # Create dynamic Ansible inventory
                         echo "[all]" > ../ansible/inventory.ini
                         terraform output -json vm_public_ips | jq -r '.[]' | \
                         while read ip; do
                             echo "server-$RANDOM ansible_host=$ip ansible_user=ubuntu" >> ../ansible/inventory.ini
                         done
+                        
                         echo "" >> ../ansible/inventory.ini
                         echo "[all:vars]" >> ../ansible/inventory.ini
-                        echo "ansible_ssh_private_key_file=~/.ssh/jenkins_deploy_rsa" >> ../ansible/inventory.ini
+                        echo "ansible_ssh_private_key_file=~/.ssh/id_rsa" >> ../ansible/inventory.ini
                         echo "ansible_python_interpreter=/usr/bin/python3" >> ../ansible/inventory.ini
+                        
+                        # Save IPs to file for reference
+                        terraform output vm_public_ips > ../ansible/vm_ips.txt
                     '''
                 }
             }
         }
+        
         stage('Wait for SSH') {
             steps {
                 dir('ansible') {
                     sh '''
-                        for ip in $(cat vm_ips.json | jq -r '.[]'); do
-                            until nc -z $ip 22; do sleep 5; done
+                        echo "Waiting for SSH to be available on all VMs..."
+                        
+                        for ip in $(terraform output -json vm_public_ips | jq -r '.[]'); do
+                            echo "Waiting for SSH on $ip..."
+                            max_attempts=30
+                            attempt=1
+                            
+                            while [ $attempt -le $max_attempts ]; do
+                                if nc -z -w5 $ip 22; then
+                                    echo "✓ SSH is ready on $ip"
+                                    break
+                                else
+                                    echo "Attempt $attempt/$max_attempts: SSH not ready on $ip"
+                                    sleep 10
+                                    attempt=$((attempt+1))
+                                fi
+                            done
+                            
+                            if [ $attempt -gt $max_attempts ]; then
+                                echo "ERROR: SSH not available on $ip after 5 minutes"
+                                exit 1
+                            fi
                         done
                     '''
                 }
             }
         }
-        stage('Ansible Deploy') {
+        
+        stage('Ansible Configuration') {
             steps {
                 dir('ansible') {
-                    sh 'ansible-playbook -i inventory.ini playbook.yml --ssh-common-args="-o StrictHostKeyChecking=no"'
+                    sh '''
+                        echo "Starting Ansible configuration..."
+                        
+                        # Test connectivity
+                        ansible all -i inventory.ini -m ping
+                        
+                        # Run main playbook
+                        ansible-playbook -i inventory.ini playbook.yml \
+                            --extra-vars "vm_count=${VM_COUNT}"
+                        
+                        # Verify installation
+                        ansible all -i inventory.ini -m shell -a "python3 --version"
+                        ansible all -i inventory.ini -m shell -a "nginx -v"
+                    '''
+                }
+            }
+        }
+        
+        stage('Verification') {
+            steps {
+                dir('ansible') {
+                    sh '''
+                        echo "=== Verification Stage ==="
+                        
+                        # Test web server
+                        for ip in $(cat vm_ips.txt | tr -d '[],"' | xargs); do
+                            echo "Testing HTTP on $ip..."
+                            http_status=$(curl -s -o /dev/null -w "%{http_code}" http://$ip/ || echo "FAILED")
+                            if [ "$http_status" = "200" ] || [ "$http_status" = "302" ] || [ "$http_status" = "404" ]; then
+                                echo "✓ Web server responding on $ip (HTTP $http_status)"
+                            else
+                                echo "✗ Web server not responding on $ip"
+                            fi
+                        done
+                        
+                        # Check services
+                        ansible all -i inventory.ini -m shell -a "systemctl is-active nginx" | grep -v "SUCCESS" || true
+                        ansible all -i inventory.ini -m shell -a "systemctl is-active ssh" | grep -v "SUCCESS" || true
+                    '''
+                }
+            }
+        }
+        
+        stage('Cleanup') {
+            when {
+                expression { params.DESTROY_AFTER_TEST }
+            }
+            steps {
+                dir('terraform') {
+                    sh '''
+                        export YC_TOKEN="${YC_TOKEN}"
+                        export YC_CLOUD_ID="${YC_CLOUD_ID}"
+                        export YC_FOLDER_ID="${YC_FOLDER_ID}"
+                        export YC_ZONE="${YC_ZONE}"
+                        
+                        echo "Destroying infrastructure as requested..."
+                        terraform destroy -auto-approve
+                    '''
                 }
             }
         }
     }
+    
     post {
         always {
-            echo "Pipeline completed"
+            echo "=== Pipeline Execution Complete ==="
+            dir('ansible') {
+                sh 'rm -f inventory.ini inventory.json vm_ips.txt 2>/dev/null || true'
+            }
+            dir('terraform') {
+                sh 'rm -f tfplan terraform.tfstate* 2>/dev/null || true'
+            }
+        }
+        success {
+            echo "✅ Pipeline completed successfully!"
+        }
+        failure {
+            echo "❌ Pipeline failed!"
         }
     }
 }
