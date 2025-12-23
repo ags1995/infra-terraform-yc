@@ -1,13 +1,47 @@
 pipeline {
-    agent any
+    agent {
+        label 'ahmad-node'  // Force execution on ahmad-node
+    }
     
     stages {
+        stage('Check Tools') {
+            steps {
+                sh '''
+                    echo "Running on: $(hostname)"
+                    echo "Checking required tools..."
+                    
+                    # Install Terraform if missing
+                    if ! command -v terraform >/dev/null 2>&1; then
+                        echo "Installing Terraform..."
+                        sudo snap install terraform --classic
+                    fi
+                    
+                    # Install Ansible if missing
+                    if ! command -v ansible >/dev/null 2>&1; then
+                        echo "Installing Ansible..."
+                        sudo apt update
+                        sudo apt install -y ansible
+                    fi
+                    
+                    # Verify installations
+                    terraform --version
+                    ansible --version
+                '''
+            }
+        }
+        
         stage('Terraform Apply') {
             steps {
                 dir('terraform') {
                     sh '''
                         # Load OpenStack credentials
-                        [ -f ~/.openstack/test-rc.sh ] && source ~/.openstack/test-rc.sh
+                        if [ -f ~/.openstack/test-rc.sh ]; then
+                            source ~/.openstack/test-rc.sh
+                            echo "OpenStack credentials loaded"
+                        else
+                            echo "ERROR: OpenStack credentials not found!"
+                            exit 1
+                        fi
                         
                         # Initialize and apply
                         terraform init
@@ -19,6 +53,7 @@ pipeline {
                         
                         # Save IP
                         terraform output -raw vm_ip > ../ansible/ip.txt
+                        echo "VM IP: $(cat ../ansible/ip.txt)"
                     '''
                 }
             }
