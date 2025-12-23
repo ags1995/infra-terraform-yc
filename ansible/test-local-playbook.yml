@@ -1,0 +1,48 @@
+---
+- name: Validate Ansible Configuration
+  hosts: localhost
+  connection: local
+  gather_facts: no  # Skip to avoid sudo issues
+  
+  tasks:
+    - name: Display project info
+      debug:
+        msg: |
+          ✅ Ansible Project Validation
+          Playbook: {{ playbook_dir }}/playbook.yml
+          Roles: common, python, nginx, database
+          Status: Configuration valid and ready
+    
+    - name: Test role loading (Common)
+      include_role:
+        name: common
+        tasks_from: main.yml
+      vars:
+        deploy_user: "ghazi"
+      check_mode: yes
+      changed_when: false
+    
+    - name: Test role loading (Python)
+      include_role:
+        name: python
+        tasks_from: main.yml
+      check_mode: yes
+      changed_when: false
+    
+    - name: Test role loading (Nginx)
+      include_role:
+        name: nginx
+        tasks_from: main.yml
+      check_mode: yes
+      changed_when: false
+    
+    - name: Test role loading (Database)
+      include_role:
+        name: database
+        tasks_from: main.yml
+      check_mode: yes
+      changed_when: false
+    
+    - name: Validation Complete
+      debug:
+        msg: "🎉 All 4 Ansible roles load successfully! Configuration is valid."

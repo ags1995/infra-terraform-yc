@@ -1,0 +1,72 @@
+terraform {
+  required_providers {
+    yandex = {
+      source = "yandex-cloud/yandex"
+      version = "~> 0.129.0"
+    }
+  }
+}
+
+provider "yandex" {
+  token     = var.yc_token
+  cloud_id  = var.cloud_id
+  folder_id = var.folder_id
+  zone      = var.zone
+}
+
+# Create a VPC network
+resource "yandex_vpc_network" "network" {
+  name = "lab5-network"
+}
+
+# Create a subnet in the specified zone
+resource "yandex_vpc_subnet" "subnet" {
+  name           = "lab5-subnet"
+  zone           = var.zone
+  network_id     = yandex_vpc_network.network.id
+  v4_cidr_blocks = ["192.168.10.0/24"]
+}
+
+# Create VM instances
+resource "yandex_compute_instance" "vm" {
+  count = var.vm_count
+  name = "lab5-vm-${count.index}"
+  
+  resources {
+    cores  = 2
+    memory = 2
+    core_fraction = 20
+  }
+
+  boot_disk {
+    initialize_params {
+      image_id = "fd87va5cc00gaq2f5qfb"  # Ubuntu 22.04
+      size = 10
+    }
+  }
+
+  network_interface {
+    subnet_id = yandex_vpc_subnet.subnet.id
+    nat       = true
+  }
+
+  metadata = {
+    ssh-keys = "ubuntu:ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDaVz+ICcF2iebf6vX1ndzJK8TF5lU0HYiuxPcMVc2qE25/Ggo+PcDPx9vjkPiv/CCtQDcbFWL6hFA0FabplfClfM8aV7JayEo0Qe+ziQkiPcSJShpv6oKgA6W1mWHni6RR/ACQWSKYnPGtoDgPrY29DN23FSjuTSvgdj7WsBvV2I7Q4mdkL5010HJUS6OAA4CEpAxVzORs7fKTou3th9WtFNaGf4vWZ/ycDS//fa2eLlIzTbV5NO4oJdLbxoU3vnhKolWfzfFjeAkDn55JqH4d6EHCI0kGOUV6h22pjoy1wUe5syiGeBMthm3N/ApiUHRD4q6B3WOHtwGk3bn2Q4oKe+hNa4ujvktDu17w0K3H/WKBNFQscfVgsnksAN6LmoWstfgEL8+09vsgyGfYctwEj4UXABxOwzpt3LEOzCZXrAdHWvQJ0HjMHmxz8/UAKV5bkcjTImfmonsAWa245lRzFRMEXJl20EP8VuZ8g+3NIcSQ0pHqPJ1TI2hzNpNxnXc= ghazi@ghazi-VirtualBox"
+  }
+  
+  scheduling_policy {
+    preemptible = true  # Cheaper, can be terminated
+  }
+}
+
+# Output the public IP addresses
+output "vm_public_ips" {
+  value = yandex_compute_instance.vm[*].network_interface[0].nat_ip_address
+  description = "Public IP addresses of created VMs"
+}
+
+# Output SSH command examples
+output "ssh_commands" {
+  value = [for i, ip in yandex_compute_instance.vm[*].network_interface[0].nat_ip_address : "ssh ubuntu@${ip}"]
+  description = "SSH commands to connect to VMs"
+}

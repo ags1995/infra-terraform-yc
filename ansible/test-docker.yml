@@ -1,0 +1,11 @@
+---
+- name: Test on Docker container
+  hosts: test_vms
+  tasks:
+    - name: Install Python (required for Ansible)
+      raw: apt-get update && apt-get install -y python3
+    
+    - name: Test common tasks
+      apt:
+        name: curl
+        state: present

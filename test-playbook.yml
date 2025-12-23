@@ -1,0 +1,16 @@
+---
+- name: Test Ansible Installation
+  hosts: localhost
+  connection: local
+  tasks:
+    - name: Display message
+      debug:
+        msg: "Ansible is working correctly on {{ ansible_hostname }}"
+        
+    - name: Check Terraform
+      command: terraform --version
+      register: terraform_version
+      
+    - name: Show Terraform version
+      debug:
+        msg: "Terraform: {{ terraform_version.stdout }}"

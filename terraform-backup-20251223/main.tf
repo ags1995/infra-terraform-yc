@@ -8,6 +8,10 @@ resource "openstack_compute_instance_v2" "vm" {
   network {
     name = var.network_name
   }
+
+  metadata = {
+    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
+  }
 }
 
 output "vm_ip" {

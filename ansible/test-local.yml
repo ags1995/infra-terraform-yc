@@ -1,0 +1,22 @@
+---
+- name: Test Ansible configuration locally
+  hosts: localhost
+  connection: local
+  gather_facts: no  # Skip gathering facts to avoid sudo issue
+  
+  tasks:
+    - name: Display test message
+      debug:
+        msg: "Ansible playbook structure is valid!"
+    
+    - name: Test common role (without sudo)
+      include_role:
+        name: common
+        tasks_from: main.yml
+      vars:
+        deploy_user: "{{ ansible_user_id }}"
+      check_mode: yes
+    
+    - name: Test completed
+      debug:
+        msg: "All Ansible roles can be loaded successfully"
