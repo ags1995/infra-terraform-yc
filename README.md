@@ -1,5 +1,5 @@
 
-## Lab 5: Terraform + Ansible on Yandex Cloud
+## Lab 5: Terraform + Ansible 
 
 ### Status: TECHNICALLY COMPLETE (awaiting IAM permissions)
 
