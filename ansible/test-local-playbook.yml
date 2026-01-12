@@ -8,7 +8,7 @@
     - name: Display project info
       debug:
         msg: |
-          ✅ Ansible Project Validation
+           Ansible Project Validation
           Playbook: {{ playbook_dir }}/playbook.yml
           Roles: common, python, nginx, database
           Status: Configuration valid and ready
@@ -45,4 +45,4 @@
     
     - name: Validation Complete
       debug:
-        msg: "🎉 All 4 Ansible roles load successfully! Configuration is valid."
+        msg: " All 4 Ansible roles load successfully! Configuration is valid."
